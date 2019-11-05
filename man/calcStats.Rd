@@ -7,18 +7,16 @@
 calcStats(x_pred1, y_obs1)
 }
 \arguments{
-\item{x_pred}{column name for predictions}
+\item{x_pred}{vector of predictions}
 
-\item{y_obs}{column name reference/validation observations}
-
-\item{df}{data frame object}
+\item{y_obs}{vector of validation observations}
 }
 \description{
 Calculates a suite of agreement statistics for two sets of paired observations.
 }
 \examples{
 # get statistics for all observations
-agreement <- calcStats('x_pred','y_obs', df)
+agreement <- calcStats(df$x_pred,df$y_obs)
 
 # get statistics for groups of observations
 library(dplyr)

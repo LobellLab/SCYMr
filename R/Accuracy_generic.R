@@ -1,14 +1,13 @@
 #' Generic accuracy assessment function
 #'
 #' Calculates a suite of agreement statistics for two sets of paired observations.
-#' @param x_pred column name for predictions
-#' @param y_obs column name reference/validation observations
-#' @param df data frame object
+#' @param x_pred vector of predictions
+#' @param y_obs vector of validation observations
 #' @keywords accuracy metrics
 #' @export
 #' @examples
 #' # get statistics for all observations
-#' agreement <- calcStats('x_pred','y_obs', df)
+#' agreement <- calcStats(df$x_pred,df$y_obs)
 #'
 #' # get statistics for groups of observations
 #' library(dplyr)
