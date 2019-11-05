@@ -24,13 +24,13 @@ calcStats <- function(x_pred1, y_obs1){
   # stats
   r2 <- summary(lm1)$r.squared
   rmse <- sqrt(mean(lm1$residuals^2))
-  r <- cor(df[,y_obs], df[,x_pred])
+  r <- cor(df$y_obs, df$x_pred)
   m <- coef(lm1)[2]
   int <- coef(lm1)[1]
-  rmspe <- sqrt(mean(((df[,y_obs] - df[,x_pred])/df[,y_obs])^2))*100
-  vecv <- (1 - sum((df[,y_obs] - df[,x_pred])^2)/sum((df[,y_obs] - mean(df[,y_obs]))^2)) * 100
-  mae <- sum(abs(df[,y_obs]-df[,x_pred]))/nrow(df)
-  me <- mean(df[,x_pred]-df[,y_obs])
+  rmspe <- sqrt(mean(((df$y_obs - df$x_pred)/df$y_obs)^2))*100
+  vecv <- (1 - sum((df$y_obs - df$x_pred)^2)/sum((df$y_obs - mean(df$y_obs))^2)) * 100
+  mae <- sum(abs(df$y_obs-df$x_pred))/nrow(df)
+  me <- mean(df$x_pred-df$y_obs)
 
   # package into df
   outdf <- data.frame(r2 = r2, rmse = rmse, r = r, m = m, int = int,
