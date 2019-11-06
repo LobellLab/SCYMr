@@ -102,7 +102,7 @@ getWindowGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
 #' library(stringr)
 #' library(broom)
 #' df_fitted <- df_satelliteSeries %>%
-#'   add_fits(
+#'   addHarmonicFits(
 #'     iterations = 4,
 #'     origin = ymd("2018-01-01"),
 #'     dependent = "GCVI",

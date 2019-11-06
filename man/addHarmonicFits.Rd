@@ -33,7 +33,7 @@ library(lubridate)
 library(stringr)
 library(broom)
 df_fitted <- df_satelliteSeries \%>\%
-  add_fits(
+  addHarmonicFits(
     iterations = 4,
     origin = ymd("2018-01-01"),
     dependent = "GCVI",
