@@ -82,6 +82,66 @@ getWindowGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
 }
 
 
+#' Extract the maximum index value and DOY for each point from raw csv files
+#'
+#' Reduces a time series of satellite observations for each point to a maximum
+#' value for the specified window. Requires readr, lubridate, and dplyr.
+#' Default window is June - August.
+#' Initial setup is for
+#' exports from Jill's GEE script '02.1x_satelliteSampler_forScymOffline'
+#' @param df_file Data.frame containing a veg index of interest
+#' @param datasource "Landsat" or "Sentinel"
+#' @param maskClouds should cloud qa be applied? defaults to FALSE
+#' @param w1_doy1 first day of first window; default is June 1
+#' @param w1_doy2 last day of first window; default is Sept 1
+#' @keywords SCYM preparation, peak vi
+#' @export
+#' @examples
+#' # to apply to a list of files:
+#' landsatFiles <- list.files(gDrive, pattern=landsatBaseName, full.names = TRUE)
+#' # check file sizes and drop empty exports
+#' landsatFilesb <- landsatFiles[sapply(landsatFiles, file.size) > 2]
+#' # load/get window GCVIs - default windows
+#' landsat_gcvi <- purrr::map_df(landsatFilesb, getPeakGCVIs_fromFile,
+#'                                datasource = "Landsat", maskClouds = TRUE)
+
+getPeakGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
+                                    w1_doy1 = 152, w1_doy2 = 245){
+  library(readr)
+  library(dplyr)
+  library(lubridate)
+
+  # load and drop points outside windows
+  griddf <- readr::read_csv(df_file, guess_max = 1000) %>%
+    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2)) %>%
+    mutate(date = ymd(date),
+           doy = yday(date)) %>%
+    # filter for window
+    filter(doy >= w1_doy1 & doy <= w1_doy2)
+
+  # mask clouds if flagged
+  if(maskClouds){
+    if(datasource == 'Landsat'){
+      griddf <- griddf %>%
+        filter(pxqa_clear == 1)
+    }
+    if(datasource == 'Sentinel'){
+      griddf <- griddf %>%
+        filter(QA60_DECODED == 1)
+    }
+  }
+
+  # get max gcvi per window per point
+  maxes <- griddf %>%
+    mutate(GCVI = (NIR/GREEN)-1) %>%
+    group_by(pointID, year) %>%
+    slice(which.max(GCVI)) %>%
+    dplyr::select(c(pointID, year, fips, state, doy, GCVI))
+
+  return(maxes)
+}
+
+
 #' Fit harmonics recursivelys to satellite time series
 #'
 #' Runs a 2-term harmonic regression for the specified number of iterations
