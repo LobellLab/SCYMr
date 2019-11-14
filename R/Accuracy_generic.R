@@ -30,11 +30,13 @@ calcStats <- function(x_pred1, y_obs1){
   rmspe <- sqrt(mean(((df$y_obs - df$x_pred)/df$y_obs)^2))*100
   vecv <- (1 - sum((df$y_obs - df$x_pred)^2)/sum((df$y_obs - mean(df$y_obs))^2)) * 100
   mae <- sum(abs(df$y_obs-df$x_pred))/nrow(df)
+  mdae <- median(abs(df$y_obs-df$x_pred))
   me <- mean(df$x_pred-df$y_obs)
 
   # package into df
-  outdf <- data.frame(r2 = r2, rmse = rmse, r = r, m = m, int = int,
-                      rmspe = rmspe, vecv = vecv, mae = mae, me = me)
+  outdf <- data.frame(r2 = r2, rmse = rmse, vecv = vecv, mae = mae, mdae = mdae, me = me,
+                      r = r, m = m, int = int,
+                      rmspe = rmspe)
   return(outdf)
 }
 
