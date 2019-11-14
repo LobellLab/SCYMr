@@ -141,10 +141,11 @@ getPeakGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
   return(maxes)
 }
 
-
 #' Fit harmonics recursivelys to satellite time series
 #'
-#' Runs a 2-term harmonic regression for the specified number of iterations
+#' Runs a 2-term harmonic regression for the specified number of iterations.
+#' Written by Calum You with modification by Jake Campolo. Output includes
+#' harmonic values at original data observations, but not coefficients.
 #' @param ts Data.frame containing columns date, dependent variable, and any
 #' grouping variables.
 #' @param iterations Number of recursive harmonics to fit
@@ -161,6 +162,7 @@ getPeakGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
 #' library(lubridate)
 #' library(stringr)
 #' library(broom)
+#'
 #' df_fitted <- df_satelliteSeries %>%
 #'   addHarmonicFits(
 #'     iterations = 4,
@@ -233,4 +235,75 @@ add_augment <- function(ts, dependent, ..., dt_col = DATE){
 }
 
 
+#' Get final recursive harmonics model coefficients
+#'
+#' Runs a 2-term harmonic regression for the specified number of iterations.
+#' Modifies getHarmonicFits to return the coefficients instead of fitted values
+#' @param ts Data.frame containing columns date, dependent variable, and any
+#' grouping variables.
+#' @param iterations Number of recursive harmonics to fit
+#' @param origin reference time; format should match df date column
+#' @param dependent column name for dependent variable
+#' @param dt_col unquoted column name for date column. Default is DATE
+#' @param omega default is 1
+#' @param ... additional grouping variables; unquoted
+#' @keywords harmonics
+#' @export
+#' @examples
+#' # apply harmonics by pointID
+#' library(dplyr)
+#' library(lubridate)
+#' library(stringr)
+#' library(broom)
+#'
+#' coefficients <- df_satelliteSeries %>%
+#'   getRecursiveCoeffs(iterations = numIterations,
+#'                      origin = ymd("2018-01-01"),
+#'                      dependent = "GCVI",
+#'                       omega = 1.5, pointID)
 
+getRecursiveCoeffs <- function(ts, iterations, origin, dependent0, ..., dt_col = DATE, omega = 1){
+  library(dplyr)
+  library(stringr)
+  library(broom)
+  dt_col <- enquo(dt_col)
+  groupers <- enquos(...)
+  dependent = ensym(dependent0)
+
+  hdt_ts <- ts %>%
+    add_hdt(origin, dt_col = !!dt_col, omega = omega) %>%
+    mutate(raw = !!dependent)
+
+  # get the fitted values
+  for (i in 1:iterations){
+    this_fit = rlang::sym(str_c("Fit", i))
+    hdt_ts <- hdt_ts %>%
+      add_augment(dependent = "raw", !!!groupers) %>% # Get fitted values
+      mutate(
+        raw = pmax(fitted, raw), # Make new raw values for next iteration
+        !!this_fit := fitted # Name this iterations fitted values
+      ) %>%
+      select(!!!groupers, raw, matches("Fit\\d"), !!dt_col, t, p1, p2, p3, p4)
+  }
+
+  # rerun last harmonic to get coeffs
+  coeffRenamer <- data.frame(term = c('(Intercept)','p1','p2','p3','p4'),
+                             independents = c('constant','sin','cos','sin2','cos2'),
+                             stringsAsFactors = FALSE)
+
+  lastFit <- paste0('Fit',iterations)
+  equationLast <- paste0(lastFit, ' ~ p1 + p2 + p3 + p4')
+
+  bestModels <- hdt_ts %>%
+    group_by(!!!groupers) %>%
+    do(model = lm(equationLast, data = .))
+
+  # get coefficients
+  coefficients <- bestModels %>%
+    tidy(model) %>%
+    left_join(coeffRenamer) %>%
+    dplyr::select(-c(std.error, statistic, p.value, term)) %>%
+    tidyr::spread(., key = independents, value = estimate)
+
+  return(coefficients)
+}
