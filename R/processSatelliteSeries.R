@@ -58,7 +58,7 @@ getWindowGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
     mutate(GCVI = (NIR/GREEN)-1) %>%
     group_by(pointID, window, year) %>%
     slice(which.max(GCVI)) %>%
-    dplyr::select(c(pointID, year, fips, state, window, doy, GCVI))
+    dplyr::select(c(pointID, year, fips, state, gridID, granularID, window, doy, GCVI))
 
   # yes, this is oddly inefficient
   maxes_wider <- maxes %>%
@@ -78,7 +78,7 @@ getWindowGCVIs_fromFile <- function(df_file, datasource, maskClouds = FALSE,
     left_join(maxwin2) %>%
     mutate(Dates = paste0(doy1, '_', doy2))
 
-  return(max_wide)
+  return(max_wide %>% ungroup())
 }
 
 
@@ -306,4 +306,24 @@ getRecursiveCoeffs <- function(ts, iterations, origin, dependent0, ..., dt_col =
     tidyr::spread(., key = independents, value = estimate)
 
   return(coefficients)
+}
+
+
+#' Predict value from harmonics
+#'
+#' @param doy doy for prediction
+#' @param constant
+#' @param a1
+#' @param a2
+#' @param b1
+#' @param b2
+#' @param omega default is 1.5
+#' @keywords harmonics, prediction
+#' @export
+#' @examples
+
+predictHarmonics <- function(doy, constant, a1, a2, b1, b2, omega = 1.5){
+  t <- doy/365
+  prediction <- constant + a1*cos(2*t*pi*omega) + b1*sin(2*t*pi*omega) +
+    a2*cos(4*t*pi*omega) + b2*sin(4*t*pi*omega)
 }
