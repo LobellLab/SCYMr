@@ -175,6 +175,7 @@ addHarmonicFits <- function(ts, iterations, origin, dependent, ..., dt_col = DAT
   library(dplyr)
   library(stringr)
   library(broom)
+  library(lubridate)
   dt_col <- enquo(dt_col)
   groupers <- enquos(...)
   dependent = ensym(dependent)
@@ -198,9 +199,11 @@ addHarmonicFits <- function(ts, iterations, origin, dependent, ..., dt_col = DAT
 
 # helpers for addHarmonicFits
 add_hdt <- function(ts, origin, dt_col = DATE, omega = 1){
+  if(leap_year(dt_col)){daynum <- 366} else {daynum <- 365}
+
   dt_col <- enquo(dt_col)
   ts %>% mutate(
-    t = as.numeric(!!dt_col - origin) / 365,
+    t = as.numeric(!!dt_col - origin) / daynum,
     p1 = sin(2 * pi * t * omega),
     p2 = cos(2 * pi * t * omega),
     p3 = sin(4 * pi * t * omega),
