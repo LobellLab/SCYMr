@@ -403,3 +403,48 @@ getBiweeklyData_fromFile <- function(df_file, year, VI, TOAcalib = TRUE) {
   return(maxVI_biweekly_wide)
 }
 
+#This function is like the one above--but a little sleeker;
+#I need to collapse these two into one but haven't done the sent calib
+# for all the VIs yet
+getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs = F) {
+  #create a sequence of two week intervals
+  date_intervals <- seq(ymd(paste0(year, '-05-01', sep="")),ymd(paste0(year, '-09-30', sep = "")), by = '2 week')
+  #read in file
+  griddf <- readr::read_csv(df_file, guess_max = 1000) %>%
+    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2)) %>%
+    mutate(date = ymd(date),
+           doy = yday(date))
+  griddf <- griddf %>% mutate(GCVI = (NIR/GREEN)-1)
+  names(griddf)
+  #added this to a few in GEE, we can calculate here, shouldnt be different
+  if ("MTCI" %in% names(griddf)) {
+    griddf <- griddf %>% select(-c(MTCI))
+  }
+  if ("CIr" %in% names(griddf)) {
+    griddf <- griddf %>% select(-c(CIr))
+  }
+  hold_maxes <- list()
+  for (i in 1:(length(date_intervals)-1)) {
+    interval <- lubridate::interval(date_intervals[i], date_intervals[i+1])
+    hold_maxes[[i]] <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
+      slice(which.max(GCVI)) %>% mutate(period = i)
+  }
+  maxVI_biweekly <- do.call('rbind', hold_maxes)
+
+  #so now, we melt and cast i guess?
+  maxVI_biweekly2 <- maxVI_biweekly %>% select(-c(doy, date, QA_HOLLST))
+  if ("QA60_DECODED" %in% names(maxVI_biweekly2)) {
+    maxVI_biweekly2 <- maxVI_biweekly2 %>% select(-c(QA60_DECODED))
+  }
+  if (RDED_VIs == T) {
+    maxVI_biweekly2 <- maxVI_biweekly2 %>%
+      mutate(SeLI = (NIR - RDED1)/(NIR + RDED1),
+             MCARI = ((RDED1 - RED) - 0.2*(RDED1 - GREEN)*(RDED1/RED))/((1 + 0.16)*((NIR - RDED1)/(NIR + RDED1 + 0.16))),
+             MTCI = (NIR - RDED1)/(RDED1 - RED))
+  }
+
+  long <- maxVI_biweekly2 %>% melt(id.vars = c("fips", "granularID", "gridID", "grid_year", "pointID", "year", "state", "period"))
+  wide <- long %>%
+    dcast(formula = fips + granularID + gridID + grid_year + pointID + year + state ~ variable + period)
+
+}
