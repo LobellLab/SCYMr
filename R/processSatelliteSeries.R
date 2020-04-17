@@ -406,7 +406,7 @@ getBiweeklyData_fromFile <- function(df_file, year, VI, TOAcalib = TRUE) {
 #This function is like the one above--but a little sleeker;
 #I need to collapse these two into one but haven't done the sent calib
 # for all the VIs yet
-getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs = F) {
+getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs) {
   #create a sequence of two week intervals
   date_intervals <- seq(ymd(paste0(year, '-05-01', sep="")),ymd(paste0(year, '-09-30', sep = "")), by = '2 week')
   #read in file
@@ -429,9 +429,15 @@ getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs = F) {
     hold_maxes[[i]] <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
       slice(which.max(GCVI)) %>% mutate(period = i)
   }
-  maxVI_biweekly <- do.call('rbind', hold_maxes)
+  maxVI_biweekly0 <- do.call('rbind', hold_maxes)
 
-  #so now, we melt and cast i guess?
+  #add vanilla VIs (GCVI added above)
+  maxVI_biweekly <- maxVI_biweekly0 %>%
+    mutate(NDVI = (NIR - RED)/(NIR + RED),
+           OSAVI = 1.16 * (NIR - RED)/(NIR + RED + 0.16),
+           SR = RED/NIR,
+           NIRv = NIR * (NIR - RED)/(NIR + RED))
+  #remove this if its there--cuz some don't have it and messes up map/lapply call
   maxVI_biweekly2 <- maxVI_biweekly %>% select(-c(doy, date, QA_HOLLST))
   if ("QA60_DECODED" %in% names(maxVI_biweekly2)) {
     maxVI_biweekly2 <- maxVI_biweekly2 %>% select(-c(QA60_DECODED))
@@ -439,8 +445,14 @@ getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs = F) {
   if (RDED_VIs == T) {
     maxVI_biweekly2 <- maxVI_biweekly2 %>%
       mutate(SeLI = (NIR - RDED1)/(NIR + RDED1),
-             MCARI = ((RDED1 - RED) - 0.2*(RDED1 - GREEN)*(RDED1/RED))/((1 + 0.16)*((NIR - RDED1)/(NIR + RDED1 + 0.16))),
-             MTCI = (NIR - RDED1)/(RDED1 - RED))
+             MCARI = ((RDED1 - RED) - 0.2*(RDED1 - GREEN)*(RDED1/RED))/
+               ((1 + 0.16)*((NIR - RDED1)/(NIR + RDED1 + 0.16))),
+             MTCI = (NIR - RDED1)/(RDED1 - RED),
+             CIr = RDED3/RDED1 - 1,
+             TCARI = 3 * ((RDED1 - RED) - 0.2 * (RDED1 - GREEN)*(RDED1/RED)),
+             NDRE1 = (RDED2 - RDED1)/(RDED2 + RDED1),
+             NDRE2 = (RDED3 - RDED1)/(RDED3 + RDED1),
+             TO = TCARI/OSAVI)
   }
 
   long <- maxVI_biweekly2 %>% melt(id.vars = c("fips", "granularID", "gridID", "grid_year", "pointID", "year", "state", "period"))
