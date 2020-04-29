@@ -465,7 +465,7 @@ getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs) {
 #May to september, taking since observation by max GCVI in each month
 getLandsatData_fromFile <- function(df_file, year, VI) {
   griddf <- readr::read_csv(df_file, guess_max = 1000) %>%
-    filter(pxqa_clear == 1) %>%
+    #filter(pxqa_clear == 1) %>%
     dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2)) %>%
     mutate(date = ymd(date), month = month(date),
            doy = yday(date)) %>%
@@ -481,16 +481,6 @@ getLandsatData_fromFile <- function(df_file, year, VI) {
                                             "grid_year", "pointID", "year", "state", "month"))
   wide <- long %>%
     dcast(formula = fips + granularID + gridID + grid_year + pointID + year + state ~ variable + month)
-
-  # toReturn <- griddf %>% select(pointID, month, fips, granularID, state, year, bands[1]) %>%
-  #   melt(id.vars = c("pointID", "month", "fips", "granularID", "state", "year")) %>%
-  #   dcast(pointID + fips + granularID + state + year ~ variable + month)
-  # for (b in bands[2:length(bands)]) {
-  #   thisBandsData <- griddf %>% select(pointID, month, fips, granularID, state, year, b) %>%
-  #     melt(id.vars = c("pointID", "month", "fips", "granularID", "state", "year")) %>%
-  #     dcast(pointID + fips + granularID + state + year ~ variable + month)
-  #   toReturn <- full_join(toReturn, thisBandsData)
-  # }
   return(wide)
 }
 
