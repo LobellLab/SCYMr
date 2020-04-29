@@ -463,20 +463,19 @@ getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs) {
 
 # This is like above, but produces monthly landsat for all 5 bands
 #May to september, taking since observation by max GCVI in each month
-getLandsatData_fromFile <- function(df_file, year, VI) {
-  griddf <- readr::read_csv(df_file, guess_max = 1000) %>%
-    #filter(pxqa_clear == 1) %>%
-    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2)) %>%
-    mutate(date = ymd(date), month = month(date),
-           doy = yday(date)) %>%
+getLandsatData_fromFile <- function(df_file) {
+  griddf <- readr::read_csv(df_file, guess_max = 1000)
+  if (!('pxqa_clear' %in% colnames(griddf))) {return(NULL)}
+  griddf <- griddf %>%
+    filter(pxqa_clear == 1) %>%
+    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2,
+                     pxqa_clear, pxqa_cloudconf)) %>%
+    mutate(date = ymd(date), month = month(date)) %>%
     filter((month > 4) & (month < 10)) %>%
     mutate(GCVI = NIR/GREEN)
   monthlyMaxes <- griddf %>% na.omit() %>% group_by(pointID, month, year) %>%
     slice(which.max(GCVI)) #pick one scene per month based on max GCVI
-
-  bands <- c("BLUE", "GREEN", "NIR", "RED", "SWIR1", "SWIR2")
-
-  #for this county, for all its 6 bands, make into wide format:
+  #melt and cast to make into wide format:
   long <- monthlyMaxes %>% melt(id.vars = c("fips", "granularID", "gridID",
                                             "grid_year", "pointID", "year", "state", "month"))
   wide <- long %>%
