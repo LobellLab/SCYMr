@@ -474,10 +474,13 @@ getLandsatData_fromFile <- function(df_file) {
                      pxqa_clear, pxqa_cloudconf)) %>%
     mutate(date = ymd(date), month = month(date)) %>%
     filter((month > 4) & (month < 10)) %>%
-    mutate(GCVI = NIR/GREEN)
+    mutate(GCVI = NIR/GREEN - 1)
 
-  monthlyMaxes <- griddf %>% na.omit() %>% group_by(pointID, month, year) %>%
+  monthlyMaxes <- griddf %>%
+    drop_na() %>%
+    group_by(pointID, month, year) %>%
     slice(which.max(GCVI)) #pick one scene per month based on max GCVI
+
   #melt and cast to make into wide format:
   long <- monthlyMaxes %>%
     select(-date) %>%
