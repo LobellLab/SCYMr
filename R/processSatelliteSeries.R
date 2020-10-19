@@ -331,3 +331,161 @@ predictHarmonics <- function(doy, constant, a1, a2, b1, b2, omega = 1.5){
   prediction <- constant + a1*cos(2*t*pi*omega) + b1*sin(2*t*pi*omega) +
     a2*cos(4*t*pi*omega) + b2*sin(4*t*pi*omega)
 }
+
+
+
+#the red edge chlorophyl index comes from various Gitelson papers (originally in 2003!?)
+#pass in VI option: GCVI, CIr, NDIr, NIRv
+#creates biweekly time series of the VI, taking max observation in each 2 week window
+getBiweeklyData_fromFile <- function(df_file, year, VI, TOAcalib = TRUE) {
+  library(dplyr)
+  library(tidyverse)
+  library(reshape2)
+  #create a sequence of two week intervals
+  date_intervals <- seq(ymd(paste0(year, '-04-01', sep="")),ymd(paste0(year, '-10-30', sep = "")), by = '2 week')
+  #read in file
+  griddf <- readr::read_csv(df_file, guess_max = 1000) %>%
+    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2)) %>%
+    mutate(date = ymd(date),
+           doy = yday(date))
+  if (VI == 'GCVI'){
+    griddf <- griddf %>% mutate(GCVI = (NIR/GREEN)-1)
+  } else if (VI == 'NIRv') {
+    griddf <- griddf %>% mutate(NIRv = NIR * (NIR - RED)/(NIR + RED))
+  } else if (VI == "CIr") {
+    griddf <- griddf %>% mutate(CIr =  (NIR/RDED2) - 1)
+  } else if (VI == "NDIr") {
+    griddf <- griddf %>% mutate(NDIr =  (RDED1 - RED)/(RDED1 + RED))
+  }
+
+  #for each 2 week interval, slice by max GCVI
+  hold_maxes <- list()
+  for (i in 1:(length(date_intervals)-1)) {
+    #set up interval
+    interval <- lubridate::interval(date_intervals[i], date_intervals[i+1])
+    if (VI == "GCVI") {
+      maxObs <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
+        slice(which.max(GCVI))
+    } else if (VI == "NIRv") {
+      maxObs <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
+        slice(which.max(NIRv))
+    } else if (VI == "CIr") {
+      maxObs <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
+        slice(which.max(NIR))
+    } else if (VI == "NDIr") {
+      maxObs <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
+        slice(which.max(RDED1))
+    }
+    hold_maxes[[i]] <- maxObs %>% mutate(period = i)
+  }
+  maxVI_biweekly <- do.call('rbind', hold_maxes)
+  #adjust GCVI
+  if (VI == "GCVI") {
+    maxVI_biweekly <- calibrateData(maxVI_biweekly, 'GCVI', int = -0.05, slope = 1.903) %>% select(-GCVI) %>%
+      rename("GCVI" = "GCVI_adj")
+    maxVI_biweekly_wide <- maxVI_biweekly %>% select(c(pointID, period, fips, granularID, state, year, GCVI))
+  } else if (VI == "NIRv") {
+    maxVI_biweekly <- calibrateData(maxVI_biweekly, 'NIRv', int = 63.21, slope = 1.215) %>% select(-NIRv) %>%
+      rename("NIRv" = "NIRv_adj")
+    maxVI_biweekly_wide <- maxVI_biweekly %>% select(c(pointID, period, fips, granularID, state, year, NIRv))
+  } else if (VI == "CIr") {
+     maxVI_biweekly <- calibrateData(maxVI_biweekly, 'CIr', int = 0.05817, slope = 0.98996) %>% select(-CIr) %>%
+     rename("CIr" = "CIr_adj")
+    maxVI_biweekly_wide <- maxVI_biweekly %>% select(c(pointID, period, fips, granularID, state, year, CIr))
+  } else if (VI == "NDIr") {
+     maxVI_biweekly <- calibrateData(maxVI_biweekly, 'NDIr', int = 0.01327, slope = 1.62311) %>% select(-NDIr) %>%
+     rename("NDIr" = "NDIr_adj")
+    maxVI_biweekly_wide <- maxVI_biweekly %>% select(c(pointID, period, fips, granularID, state, year, NDIr))
+  }
+  #melt and cast
+  maxVI_biweekly_wide <- dcast(melt(maxVI_biweekly_wide, id.vars = c("pointID", "period", "fips", "granularID", "state", "year")),
+                               pointID + fips + granularID + state + year ~ variable + period)
+  return(maxVI_biweekly_wide)
+}
+
+#This function is like the one above--but a little sleeker;
+#I need to collapse these two into one but haven't done the sent calib
+# for all the VIs yet
+getBiweeklyDataAllBands_fromFile <- function(df_file, year, RDED_VIs) {
+  #create a sequence of two week intervals
+  date_intervals <- seq(ymd(paste0(year, '-05-01', sep="")),ymd(paste0(year, '-09-30', sep = "")), by = '2 week')
+  #read in file
+  griddf <- readr::read_csv(df_file, guess_max = 1000) %>%
+    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2)) %>%
+    mutate(date = ymd(date),
+           doy = yday(date))
+  griddf <- griddf %>% mutate(GCVI = (NIR/GREEN)-1)
+  names(griddf)
+  #added this to a few in GEE, we can calculate here, shouldnt be different
+  if ("MTCI" %in% names(griddf)) {
+    griddf <- griddf %>% select(-c(MTCI))
+  }
+  if ("CIr" %in% names(griddf)) {
+    griddf <- griddf %>% select(-c(CIr))
+  }
+  hold_maxes <- list()
+  for (i in 1:(length(date_intervals)-1)) {
+    interval <- lubridate::interval(date_intervals[i], date_intervals[i+1])
+    hold_maxes[[i]] <- griddf %>% filter(date %within% interval) %>% group_by(pointID) %>%
+      slice(which.max(GCVI)) %>% mutate(period = i)
+  }
+  maxVI_biweekly0 <- do.call('rbind', hold_maxes)
+
+  #add vanilla VIs (GCVI added above)
+  maxVI_biweekly <- maxVI_biweekly0 %>%
+    mutate(NDVI = (NIR - RED)/(NIR + RED),
+           OSAVI = 1.16 * (NIR - RED)/(NIR + RED + 0.16),
+           SR = RED/NIR,
+           NIRv = NIR * (NIR - RED)/(NIR + RED))
+  #remove this if its there--cuz some don't have it and messes up map/lapply call
+  maxVI_biweekly2 <- maxVI_biweekly %>% select(-c(doy, date, QA_HOLLST))
+  if ("QA60_DECODED" %in% names(maxVI_biweekly2)) {
+    maxVI_biweekly2 <- maxVI_biweekly2 %>% select(-c(QA60_DECODED))
+  }
+  if (RDED_VIs == T) {
+    maxVI_biweekly2 <- maxVI_biweekly2 %>%
+      mutate(SeLI = (NIR - RDED1)/(NIR + RDED1),
+             MCARI = ((RDED1 - RED) - 0.2*(RDED1 - GREEN)*(RDED1/RED))/
+               ((1 + 0.16)*((NIR - RDED1)/(NIR + RDED1 + 0.16))),
+             MTCI = (NIR - RDED1)/(RDED1 - RED),
+             CIr = RDED3/RDED1 - 1,
+             TCARI = 3 * ((RDED1 - RED) - 0.2 * (RDED1 - GREEN)*(RDED1/RED)),
+             NDRE1 = (RDED2 - RDED1)/(RDED2 + RDED1),
+             NDRE2 = (RDED3 - RDED1)/(RDED3 + RDED1),
+             TO = TCARI/OSAVI)
+  }
+
+  long <- maxVI_biweekly2 %>% melt(id.vars = c("fips", "granularID", "gridID", "grid_year", "pointID", "year", "state", "period"))
+  wide <- long %>%
+    dcast(formula = fips + granularID + gridID + grid_year + pointID + year + state ~ variable + period)
+
+}
+
+# This is like above, but produces monthly landsat for all 5 bands
+#May to september, taking since observation by max GCVI in each month
+getLandsatData_fromFile <- function(df_file) {
+  griddf0 <- readr::read_csv(df_file, guess_max = 1000)
+  if (!('pxqa_clear' %in% colnames(griddf0))) {
+    return(NULL)
+  }
+  griddf <- griddf0 %>%
+    filter(pxqa_clear == 1) %>%
+    dplyr::select(-c(`system:index`, `.geo`, yield_scym, yield_tha, state2,
+                     pxqa_clear, pxqa_cloudconf)) %>%
+    mutate(date = ymd(date), month = month(date)) %>%
+    filter((month > 4) & (month < 10)) %>%
+    mutate(GCVI = NIR/GREEN - 1)
+
+  monthlyMaxes <- griddf %>%
+    drop_na() %>%
+    group_by(pointID, month, year) %>%
+    slice(which.max(GCVI)) #pick one scene per month based on max GCVI
+
+  #melt and cast to make into wide format:
+  long <- monthlyMaxes %>%
+    select(-date) %>%
+    melt(id.vars = c("fips", "granularID", "gridID","grid_year", "pointID", "year", "state","month"))
+  wide <- long %>%
+    dcast(formula = fips + granularID + gridID + grid_year + pointID + year + state ~ variable + month)
+  return(wide)
+}

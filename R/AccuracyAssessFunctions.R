@@ -87,6 +87,7 @@ stateStatsPlotter <- function(combined_df, statestatdf, ncol=4, title, axisScale
                                  'yint = ',base::round(int, digits = 2), '  \n',
                                  'm = ', base::round(m, digits = 2), '   ')) )+
     geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+    geom_smooth(method = "lm") +
     #facet_wrap(~state_name, ncol=ncol) +
     facet_geo(~state_name, grid = mygrid) +
     coord_equal(xlim=c(0,axisScale), ylim=c(0,axisScale)) +
@@ -134,6 +135,7 @@ yearStatsPlotter <- function(statename, dotColor, combined_df, yearstatdf, ncol=
                                  'yint = ',base::round(int, digits = 2), '  \n',
                                  'm = ', base::round(m, digits = 2), '   ')) )+
     geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+    geom_smooth(method = "lm") +
     facet_wrap(~year, ncol=ncol) +
     coord_equal(xlim=c(0,axisScale), ylim=c(0,axisScale)) +
     xlab('Scym yield estimates (t/ha)') + ylab('NASS county-level yield (t/ha)') +
@@ -154,4 +156,13 @@ overallRMSECalc <- function(combined_df) {
     select(c(state_name, yield_scym_mt_ha, nassyield_mt_ha)) %>%
     mutate(RMSE = MLmetrics::RMSE(yield_scym_mt_ha,nassyield_mt_ha))
   stats$RMSE[1]
+}
+
+overallrCalc <- function(combined_df) {
+  stats = combined_df %>%
+    na.omit() %>%
+    select(c(state_name, yield_scym_mt_ha, nassyield_mt_ha)) %>%
+    mutate(r = cor(yield_scym_mt_ha,nassyield_mt_ha))
+  stats$r[1]
+
 }
