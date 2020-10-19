@@ -23,7 +23,7 @@ calcStats <- function(x_pred1, y_obs1){
 
   # stats
   r2 <- summary(lm1)$r.squared
-  rmse <- sqrt(mean(lm1$residuals^2))
+  rmse <- sqrt(mean((y_obs - x_pred)^2))
   r <- cor(df$y_obs, df$x_pred)
   m <- coef(lm1)[2]
   int <- coef(lm1)[1]
